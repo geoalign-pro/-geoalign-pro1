@@ -87,7 +87,8 @@ with col2:
             # Always map in WGS84 for web folium display
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-            m = folium.Map(location=center, zoom_start=10, tiles="CartoDB positron")
+          m = folium.Map(location=center, zoom_start=10, tiles="OpenStreetMap")
+
             
             # Add spatial data to map
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
