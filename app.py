@@ -4,6 +4,7 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 import io
+import re
 
 # Page Config for Professional Look
 st.set_page_config(page_title="GeoAlign Pro", page_icon="🌐", layout="wide")
@@ -20,6 +21,18 @@ st.markdown("""
 st.markdown('<div class="main-header">🌐 GeoAlign Pro Studio</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">The Smartest Way to Fix Coordinate Misalignments & Map Shifts Instantly</div>', unsafe_allow_html=True)
 
+# Helper function to clean text coordinates (e.g., "74.34361° E" -> 74.34361)
+def clean_coordinate(val):
+    if pd.isna(val):
+        return val
+    val_str = str(val).strip()
+    # Remove symbols like °, E, N, W, S and spaces
+    cleaned = re.sub(r'[^\d\.\-]', '', val_str)
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
 # Layout Columns
 col1, col2 = st.columns([1, 1.2])
 
@@ -34,7 +47,13 @@ with col1:
                 gdf = gpd.read_file(uploaded_file)
             elif uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
-                st.info("💡 Tip: Standardized to global Lat/Lon inputs.")
+                
+                # Auto-cleaning longitude and latitude columns if they contain characters like ° E/N
+                df['longitude'] = df['longitude'].apply(clean_coordinate)
+                df['latitude'] = df['latitude'].apply(clean_coordinate)
+                
+                df = df.dropna(subset=['longitude', 'latitude'])
+                st.info("💡 Tip: Automatically cleaned text formatting (° E/N) from your coordinates!")
                 gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitude, df.latitude), crs="EPSG:4326")
 
             st.success("✅ File loaded successfully!")
@@ -81,19 +100,19 @@ with col1:
 
 with col2:
     st.subheader("🗺️ Live Spatial Data Preview")
-    if uploaded_file is not None and 'gdf' in locals():
-        # Map logic (Visualize spatial input safely)
+    if uploaded_file is not None and 'gdf' in locals() and not gdf.empty:
         try:
             # Always map in WGS84 for web folium display
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-          m = folium.Map(location=center, zoom_start=10, tiles="OpenStreetMap")
-
+            
+            # FIXED: Using OpenStreetMap tiles to remove API key restriction
+            m = folium.Map(location=center, zoom_start=10, tiles="OpenStreetMap")
             
             # Add spatial data to map
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
             st_folium(m, width=600, height=500)
-        except:
+        except Exception as map_err:
             st.warning("⚠️ Visual map preview unavailable for this specific data structure, but alignment engine remains active.")
     else:
         st.info("Upload a file on the left to see its live geographic boundaries and mapping overlay here.")
