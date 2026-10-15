@@ -9,7 +9,6 @@ import re
 # Page Config for Professional Look
 st.set_page_config(page_title="GeoAlign Pro", page_icon="🌐", layout="wide")
 
-# Custom CSS for Premium Styling
 st.markdown("""
     <style>
     .main-header { font-size:38px !important; font-weight: bold; color: #1E3A8A; text-align: center; margin-bottom: 10px; }
@@ -21,7 +20,6 @@ st.markdown("""
 st.markdown('<div class="main-header">🌐 GeoAlign Pro Studio</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">The Smartest Way to Fix Coordinate Misalignments & Map Shifts Instantly</div>', unsafe_allow_html=True)
 
-# Helper function to clean text coordinates (e.g., "74.34361° E" -> 74.34361)
 def clean_coordinate(val):
     if pd.isna(val):
         return val
@@ -32,7 +30,6 @@ def clean_coordinate(val):
     except ValueError:
         return None
 
-# Layout Columns
 col1, col2 = st.columns([1, 1.2])
 
 with col1:
@@ -93,7 +90,9 @@ with col2:
         try:
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-            m = folium.Map(location=center, zoom_start=10, tiles="https://arcgisonline.com{z}/{y}/{x}", attr="Esri")
+            
+            # FIXED: Set standard OpenStreetMap with dynamically balanced standard zoom
+            m = folium.Map(location=center, zoom_start=5, tiles="OpenStreetMap")
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
             st_folium(m, width=600, height=500)
         except Exception as map_err:
