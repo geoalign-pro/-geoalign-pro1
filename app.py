@@ -5,6 +5,9 @@ import folium
 from streamlit_folium import st_folium
 import io
 import re
+import os
+import zipfile
+import shutil
 
 # Page Config for Professional Look
 st.set_page_config(page_title="GeoAlign Pro", page_icon="🌐", layout="wide")
@@ -60,23 +63,64 @@ with col1:
             selected_crs = st.selectbox("Target CRS:", list(crs_options.keys()))
             target_epsg = crs_options[selected_crs]
 
-            st.markdown('<div class="step-box"><h4>Step 3: Align & Download</h4></div>', unsafe_allow_html=True)
-            if st.button("🚀 Run Auto-Alignment", use_container_width=True):
-                with st.spinner("Aligning geospatial layers..."):
+            # NEW FEATURE: Select Output Format Group
+            st.markdown('<div class="step-box"><h4>Step 3: Select Output Export Format</h4></div>', unsafe_allow_html=True)
+            format_options = ["GeoJSON (.geojson)", "ESRI Shapefile (.zip)", "KML (.kml)"]
+            selected_format = st.selectbox("Export Format:", format_options)
+
+            st.markdown('<div class="step-box"><h4>Step 4: Align & Download</h4></div>', unsafe_allow_html=True)
+            if st.button("🚀 Run Auto-Alignment & Convert", use_container_width=True):
+                with st.spinner("Aligning geospatial layers & structural packaging..."):
                     transformed_gdf = gdf.to_crs(target_epsg)
-                    st.session_state['transformed_gdf'] = transformed_gdf
+                    
+                    # File generation logic based on user selection
+                    if "GeoJSON" in selected_format:
+                        output = io.BytesIO()
+                        transformed_gdf.to_file(output, driver='GeoJSON', encoding='utf-8')
+                        st.session_state['download_bytes'] = output.getvalue()
+                        st.session_state['file_name'] = f"aligned_{uploaded_file.name.split('.')[0]}.geojson"
+                        st.session_state['mime_type'] = "application/geo+json"
+                    
+                    elif "KML" in selected_format:
+                        # Force back to 4326 for standard KML specification compliance
+                        kml_gdf = transformed_gdf.to_crs("EPSG:4326")
+                        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
+                        output = io.BytesIO()
+                        kml_gdf.to_file(output, driver='KML')
+                        st.session_state['download_bytes'] = output.getvalue()
+                        st.session_state['file_name'] = f"aligned_{uploaded_file.name.split('.')[0]}.kml"
+                        st.session_state['mime_type'] = "application/vnd.google-earth.kml+xml"
+                    
+                    elif "Shapefile" in selected_format:
+                        # Shapefiles consist of multiple files, we zip them for convenient downloading
+                        temp_dir = "temp_shapefile"
+                        if os.path.exists(temp_dir):
+                            shutil.rmtree(temp_dir)
+                        os.makedirs(temp_dir)
+                        
+                        base_name = f"aligned_{uploaded_file.name.split('.')[0]}"
+                        transformed_gdf.to_file(os.path.join(temp_dir, f"{base_name}.shp"))
+                        
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for root, _, files in os.walk(temp_dir):
+                                for file in files:
+                                    zf.write(os.path.join(root, file), file)
+                        
+                        shutil.rmtree(temp_dir)
+                        st.session_state['download_bytes'] = zip_buffer.getvalue()
+                        st.session_state['file_name'] = f"{base_name}.zip"
+                        st.session_state['mime_type'] = "application/zip"
+                    
                     st.session_state['processed'] = True
-                    output = io.BytesIO()
-                    transformed_gdf.to_file(output, driver='GeoJSON', encoding='utf-8')
-                    st.session_state['download_bytes'] = output.getvalue()
                     st.balloons()
             
             if st.session_state.get('processed', False):
                 st.download_button(
-                    label="📥 Download Aligned Spatial File",
+                    label=f"📥 Download {st.session_state['file_name']}",
                     data=st.session_state['download_bytes'],
-                    file_name=f"aligned_{uploaded_file.name}",
-                    mime="application/geo+json",
+                    file_name=st.session_state['file_name'],
+                    mime=st.session_state['mime_type'],
                     use_container_width=True
                 )
 
@@ -90,8 +134,6 @@ with col2:
         try:
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-            
-            # FIXED: Set standard OpenStreetMap with dynamically balanced standard zoom
             m = folium.Map(location=center, zoom_start=5, tiles="OpenStreetMap")
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
             st_folium(m, width=600, height=500)
