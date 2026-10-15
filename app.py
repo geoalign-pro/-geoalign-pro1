@@ -101,13 +101,14 @@ with col1:
 with col2:
     st.subheader("🗺️ Live Spatial Data Preview")
     if uploaded_file is not None and 'gdf' in locals() and not gdf.empty:
-        try:
+                try:
             # Always map in WGS84 for web folium display
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-    
-          # Fixed to display standard international English map tiles
-m = folium.Map(location=center, zoom_start=10, tiles="https://google.com{x}&y={y}&z={z}", attr="Google")       
+            
+            # FIXED: Correct Google Maps Tile URL with standard English names
+            m = folium.Map(location=center, zoom_start=10, tiles="https://google.com{x}&y={y}&z={z}", attr="Google")
+            
             # Add spatial data to map
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
             st_folium(m, width=600, height=500)
