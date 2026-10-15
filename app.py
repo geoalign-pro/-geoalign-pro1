@@ -63,43 +63,41 @@ with col1:
             selected_crs = st.selectbox("Target CRS:", list(crs_options.keys()))
             target_epsg = crs_options[selected_crs]
 
-            # NEW FEATURE: Select Output Format Group
             st.markdown('<div class="step-box"><h4>Step 3: Select Output Export Format</h4></div>', unsafe_allow_html=True)
             format_options = ["GeoJSON (.geojson)", "ESRI Shapefile (.zip)", "KML (.kml)"]
             selected_format = st.selectbox("Export Format:", format_options)
 
             st.markdown('<div class="step-box"><h4>Step 4: Align & Download</h4></div>', unsafe_allow_html=True)
             if st.button("🚀 Run Auto-Alignment & Convert", use_container_width=True):
-                with st.spinner("Aligning geospatial layers & structural packaging..."):
+                with st.spinner("Aligning geospatial layers..."):
                     transformed_gdf = gdf.to_crs(target_epsg)
                     
-                    # File generation logic based on user selection
+                    base_name = uploaded_file.name.split('.')[0]
+                    
                     if "GeoJSON" in selected_format:
                         output = io.BytesIO()
                         transformed_gdf.to_file(output, driver='GeoJSON', encoding='utf-8')
                         st.session_state['download_bytes'] = output.getvalue()
-                        st.session_state['file_name'] = f"aligned_{uploaded_file.name.split('.')[0]}.geojson"
+                        st.session_state['file_name'] = f"aligned_{base_name}.geojson"
                         st.session_state['mime_type'] = "application/geo+json"
                     
                     elif "KML" in selected_format:
-                        # Force back to 4326 for standard KML specification compliance
+                        # Fixed KML export method for modern GeoPandas
                         kml_gdf = transformed_gdf.to_crs("EPSG:4326")
-                        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
                         output = io.BytesIO()
-                        kml_gdf.to_file(output, driver='KML')
+                        kml_gdf.to_file(output, driver='LIBKML')
                         st.session_state['download_bytes'] = output.getvalue()
-                        st.session_state['file_name'] = f"aligned_{uploaded_file.name.split('.')[0]}.kml"
+                        st.session_state['file_name'] = f"aligned_{base_name}.kml"
                         st.session_state['mime_type'] = "application/vnd.google-earth.kml+xml"
                     
                     elif "Shapefile" in selected_format:
-                        # Shapefiles consist of multiple files, we zip them for convenient downloading
                         temp_dir = "temp_shapefile"
                         if os.path.exists(temp_dir):
                             shutil.rmtree(temp_dir)
                         os.makedirs(temp_dir)
                         
-                        base_name = f"aligned_{uploaded_file.name.split('.')[0]}"
-                        transformed_gdf.to_file(os.path.join(temp_dir, f"{base_name}.shp"))
+                        shapefile_name = f"aligned_{base_name}"
+                        transformed_gdf.to_file(os.path.join(temp_dir, f"{shapefile_name}.shp"))
                         
                         zip_buffer = io.BytesIO()
                         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -109,7 +107,7 @@ with col1:
                         
                         shutil.rmtree(temp_dir)
                         st.session_state['download_bytes'] = zip_buffer.getvalue()
-                        st.session_state['file_name'] = f"{base_name}.zip"
+                        st.session_state['file_name'] = f"{shapefile_name}.zip"
                         st.session_state['mime_type'] = "application/zip"
                     
                     st.session_state['processed'] = True
