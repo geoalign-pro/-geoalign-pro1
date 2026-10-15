@@ -26,7 +26,6 @@ def clean_coordinate(val):
     if pd.isna(val):
         return val
     val_str = str(val).strip()
-    # Remove symbols like °, E, N, W, S and spaces
     cleaned = re.sub(r'[^\d\.\-]', '', val_str)
     try:
         return float(cleaned)
@@ -42,16 +41,12 @@ with col1:
 
     if uploaded_file is not None:
         try:
-            # Load Data Safely
             if uploaded_file.name.endswith('.geojson') or uploaded_file.name.endswith('.kml'):
                 gdf = gpd.read_file(uploaded_file)
             elif uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
-                
-                # Auto-cleaning longitude and latitude columns if they contain characters like ° E/N
                 df['longitude'] = df['longitude'].apply(clean_coordinate)
                 df['latitude'] = df['latitude'].apply(clean_coordinate)
-                
                 df = df.dropna(subset=['longitude', 'latitude'])
                 st.info("💡 Tip: Automatically cleaned text formatting (° E/N) from your coordinates!")
                 gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitude, df.latitude), crs="EPSG:4326")
@@ -71,18 +66,12 @@ with col1:
             st.markdown('<div class="step-box"><h4>Step 3: Align & Download</h4></div>', unsafe_allow_html=True)
             if st.button("🚀 Run Auto-Alignment", use_container_width=True):
                 with st.spinner("Aligning geospatial layers..."):
-                    # Transform CRS
                     transformed_gdf = gdf.to_crs(target_epsg)
-                    
-                    # Store transformed data for session status
                     st.session_state['transformed_gdf'] = transformed_gdf
                     st.session_state['processed'] = True
-                    
-                    # Convert to GeoJSON Bytes
                     output = io.BytesIO()
                     transformed_gdf.to_file(output, driver='GeoJSON', encoding='utf-8')
                     st.session_state['download_bytes'] = output.getvalue()
-                    
                     st.balloons()
             
             if st.session_state.get('processed', False):
@@ -101,15 +90,10 @@ with col1:
 with col2:
     st.subheader("🗺️ Live Spatial Data Preview")
     if uploaded_file is not None and 'gdf' in locals() and not gdf.empty:
-                try:
-            # Always map in WGS84 for web folium display
+        try:
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-            
-            # FIXED: Correct Google Maps Tile URL with standard English names
             m = folium.Map(location=center, zoom_start=10, tiles="https://google.com{x}&y={y}&z={z}", attr="Google")
-            
-            # Add spatial data to map
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
             st_folium(m, width=600, height=500)
         except Exception as map_err:
