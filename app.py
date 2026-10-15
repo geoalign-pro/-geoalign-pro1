@@ -93,7 +93,7 @@ with col2:
         try:
             map_gdf = gdf.to_crs("EPSG:4326")
             center = [map_gdf.geometry.centroid.y.mean(), map_gdf.geometry.centroid.x.mean()]
-            m = folium.Map(location=center, zoom_start=10, tiles="https://google.com{x}&y={y}&z={z}", attr="Google")
+            m = folium.Map(location=center, zoom_start=10, tiles="https://arcgisonline.com{z}/{y}/{x}", attr="Esri")
             folium.GeoJson(map_gdf.to_json(), name="Uploaded Data").add_to(m)
             st_folium(m, width=600, height=500)
         except Exception as map_err:
